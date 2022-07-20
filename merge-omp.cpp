@@ -6,16 +6,18 @@
 
 using namespace std;
 
-void mergeSortOMP(vector<int>::iterator in1, vector<int>::iterator in2, vector<int>::iterator out1, int minSize){
-    if(in2-in1>1){
-        int mid = (in2 - in1) / 2;
-        vector<int>::iterator out2 = out1+mid;
-        vector<int>::iterator out3 = out1+(in2-in1);
-        #pragma omp task untied depend(out: out1) if(in2-in1>minSize)
-        mergeSortOMP(in1, in1+mid, out1, minSize);
-        #pragma omp task untied depend(out: out2) if(in2-in1>minSize)
-        mergeSortOMP(in1+mid, in2, out2, minSize);
-        #pragma omp task untied depend(in:out1, out2) if(in2-in1>minSize)
+template<typename InputIter, typename OutputIter>
+void mergeSortOMP(InputIter in1, InputIter in2, OutputIter out1, size_t minSize){
+    std::size_t size = in2 - in1;
+    if(size>1){
+        InputIter mid = in1 + (size/2);
+        OutputIter out2 = out1 + (size/2);
+        OutputIter out3 = out1 + size;
+        #pragma omp task untied depend(out: out1) if(size>minSize)
+        mergeSortOMP(in1, mid, out1, minSize);
+        #pragma omp task untied depend(out: out2) if(size>minSize)
+        mergeSortOMP(mid, in2, out2, minSize);
+        #pragma omp task untied depend(in:out1, out2) if(size>minSize)
         std::inplace_merge(out1,out2,out3);
         #pragma omp taskwait
     } else {
@@ -23,8 +25,9 @@ void mergeSortOMP(vector<int>::iterator in1, vector<int>::iterator in2, vector<i
     }
 }
 
-vector<int> parallelMergeSortOMP(vector<int>& in, size_t minSize = 128){
-    vector<int> out(in.size());
+template<typename Container>
+Container parallelMergeSortOMP(Container& in, size_t minSize = 128){
+    Container out(in.size());
     #pragma omp parallel master
     mergeSortOMP(in.begin(), in.end(), out.begin(), minSize);
     return out;

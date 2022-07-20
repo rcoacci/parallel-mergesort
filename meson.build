@@ -6,5 +6,5 @@ project('merge', ['cpp'],
 
 openmp = dependency('openmp')
 mpi = dependency('mpi', language:'cpp')
-executable('merge-omp',['merge-omp.cpp', 'util.cpp', 'mergeSort.cpp'], dependencies: openmp)
-executable('merge-mpi',['merge-mpi.cpp', 'util.cpp', 'mergeSort.cpp'], dependencies: mpi)
+executable('merge-omp',['merge-omp.cpp', 'util.cpp'], dependencies: openmp)
+executable('merge-mpi',['merge-mpi.cpp', 'util.cpp'], dependencies: mpi)

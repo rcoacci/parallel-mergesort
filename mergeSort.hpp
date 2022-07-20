@@ -1,3 +1,16 @@
 #include <vector>
+#include <algorithm>
 
-void mergeSort(std::vector<int>::iterator, std::vector<int>::iterator);
+/**
+ * Inplace Merge Sort.
+ */
+template<typename Iter>
+void mergeSort(Iter begin, Iter end){
+    std::size_t size = end-begin;
+    if (size > 1){
+        Iter mid = begin+(size)/2;
+        mergeSort(begin, mid);
+        mergeSort(mid, end);
+        std::inplace_merge(begin, mid, end);
+    }
+}
