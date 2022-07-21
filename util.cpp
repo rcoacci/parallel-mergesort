@@ -7,7 +7,7 @@
 using namespace std;
 
 void print(const int& n){
-    std::cerr << " " << n;
+    std::cout << " " << n;
 };
 
 vector<int> generateInput(size_t n){
