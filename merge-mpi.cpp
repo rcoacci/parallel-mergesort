@@ -8,7 +8,7 @@
 
 using namespace std;
 
-static chrono::steady_clock::duration times[4] = {};
+static chrono::steady_clock::duration times[3] = {};
 
 void sortMPI(int localSize, int id, const vector<int>& input, vector<int>& out){
     vector<int> localIn(localSize);
@@ -20,24 +20,21 @@ void sortMPI(int localSize, int id, const vector<int>& input, vector<int>& out){
 }
 
 void mergeMPI(int localSize, int id, int numProcs, vector<int>& out){
-    vector<int> out2(localSize*2);
     vector<int> counts(numProcs), offsets(numProcs);
-    for (int i=0; i < numProcs; i++){counts[i] = (i%2 == 0?localSize*2:0); offsets[i] = i*localSize;}
-    MPI_Scatterv(out.data(), &counts[0], &offsets[0], MPI_INT, out2.data(), counts[id], MPI_INT, 0, MPI_COMM_WORLD);
-    if(id%2==0){
-        auto start = chrono::steady_clock::now();
-        std::inplace_merge(out2.begin(), out2.begin()+localSize, out2.end());
-        times[1] = (chrono::steady_clock::now() - start);
-    }
-    MPI_Gatherv(out2.data(), counts[id], MPI_INT, out.data(), &counts[0], &offsets[0], MPI_INT, 0, MPI_COMM_WORLD);
-    if(id==0){
-        auto start = chrono::steady_clock::now();
-        for(int i=1; i<numProcs/2; i++){
-            int mid = i*localSize*2;
-            int end = (i+1)*localSize*2;
-            std::inplace_merge(out.begin(), out.begin()+mid, out.begin()+end);
+    vector<int> out2(out.size());
+    for (int i=0; i < numProcs; i++){offsets[i] = i*localSize;}
+    for(int j = 2; j<=numProcs; j*=2){
+        size_t curr_size = localSize*j;
+        for (int i=0; i < numProcs; i++){counts[i] = i%j==0?curr_size:0;}
+        MPI_Scatterv(out.data(), &counts[0], &offsets[0], MPI_INT, out2.data(), counts[id], MPI_INT, 0, MPI_COMM_WORLD);
+        if(id%j==0){
+            auto mid = out2.begin()+(curr_size/2);
+            auto end = out2.begin()+curr_size;
+            auto start = chrono::steady_clock::now();
+            std::inplace_merge(out2.begin(), mid, end);
+            times[1] += (chrono::steady_clock::now() - start);
         }
-        times[2] = (chrono::steady_clock::now() - start);
+        MPI_Gatherv(out2.data(), counts[id], MPI_INT, out.data(), &counts[0], &offsets[0], MPI_INT, 0, MPI_COMM_WORLD);
     }
 }
 
@@ -58,7 +55,7 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &id);
 
     if(id == 0){
-        cout<<"[Proc "<<id<<"]: "<<"Gerando array de tamanho N = "<<n<<"\n";
+        cout<<"[Proc "<<id<<"]: "<<"Gerando array de tamanho N = "<<n<<" com " << n*sizeof(int)/1024.0<< " kb.\n";
         cout<<"[Proc "<<id<<"]: ";
         input = generateInput(n);
     }
@@ -70,18 +67,17 @@ int main(int argc, char *argv[])
         auto start = chrono::steady_clock::now();
         sortMPI(localSize, id, input, out);
         mergeMPI(localSize, id, numProcs, out);
-        times[3] = (chrono::steady_clock::now() - start);
+        times[2] = (chrono::steady_clock::now() - start);
         if(id==0) {
             cout<<"[Proc "<<id<<"]: ";
             check(out);
         }
     }
     cout<<"[Proc "<<id<<"]: "<<"Tempo sort:      "<<times[0]/1.0s<<" s\n";
-    cout<<"[Proc "<<id<<"]: "<<"Tempo merge1:    "<<times[1]/1.0s<<" s\n";
-    cout<<"[Proc "<<id<<"]: "<<"Tempo merge2:    "<<times[2]/1.0s<<" s\n";
-    cout<<"[Proc "<<id<<"]: "<<"Tempo total MPI: "<<times[3]/1.0s<<" s\n";
-    cout<<"[Proc "<<id<<"]: "<<"Tempo processamento: "<<(times[0]+times[1]+times[2])/1.0s<<" s\n";
-    cout<<"[Proc "<<id<<"]: "<<"Tempo overhead:      "<<(times[3]-times[0]-times[1]-times[2])/1.0s<<" s\n\n";
+    cout<<"[Proc "<<id<<"]: "<<"Tempo merge:    "<<times[1]/1.0s<<" s\n";
+    cout<<"[Proc "<<id<<"]: "<<"Tempo total MPI: "<<times[2]/1.0s<<" s\n";
+    cout<<"[Proc "<<id<<"]: "<<"Tempo processamento: "<<((times[0]+times[1])/1.ms)/(times[2]/1.ms)*100.<<" %\n";
+    cout<<"[Proc "<<id<<"]: "<<"Tempo overhead:      "<<((times[2]-times[0]-times[1])/1.ms)/(times[2]/1.ms)*100.<<" %\n\n";
     if(id==0){
         cout<<"[Proc "<<id<<"]: "<<"MergeSort sequencial:\n";
         {
